@@ -56,7 +56,7 @@ func determine_report_safe(report []int8, tolerate bool) bool {
 		curr_num := report[index]
 
 		// Make sure the previous and current number from the report is not equal and is below the allowed threshold.
-		if diff := abs_int16(curr_num - prev_num); diff > max_threshold || diff == 0 {
+		if diff := abs_int8(curr_num - prev_num); diff > max_threshold || diff == 0 {
 			if tolerate {
 				return check_report_with_tolerance(report, index)
 			}
@@ -131,7 +131,7 @@ func check_report_with_tolerance(report []int8, index int) bool {
 	return determine_report_safe(r1, false) || determine_report_safe(r2, false)
 }
 
-func abs_int16(v int8) int8 {
+func abs_int8(v int8) int8 {
 	if v < 0 {
 		v *= -1
 	}
