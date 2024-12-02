@@ -9,8 +9,8 @@ import (
 )
 
 var (
-	left_list  = make([]int32, 1000)
-	right_list = make([]int32, 1000)
+	left_list  = make([]int64, 1000)
+	right_list = make([]int64, 1000)
 )
 
 func parse_input() {
@@ -28,13 +28,13 @@ func parse_input() {
 		right_num, _ := strconv.ParseInt(split[1], 10, 64)
 
 		// Put each parsed integer into the left & right list.
-		left_list[index] = int32(left_num)
-		right_list[index] = int32(right_num)
+		left_list[index] = left_num
+		right_list[index] = right_num
 	}
 }
 
-func calculate_distance() int32 {
-	var total_distance int32
+func calculate_distance() int64 {
+	var total_distance int64
 
 	for index := 0; index < 1_000; index++ {
 		left_num := left_list[index]
@@ -51,10 +51,10 @@ func calculate_distance() int32 {
 	return total_distance
 }
 
-func calculate_similarity() uint64 {
+func calculate_similarity() int64 {
 	var (
-		apperances       = make(map[int32]uint16)
-		similarity_score uint64
+		apperances       = make(map[int64]uint16)
+		similarity_score int64
 	)
 
 	// First iterate through the right list, to find the amount of times certain numbers appear
@@ -72,7 +72,7 @@ func calculate_similarity() uint64 {
 	// right list, and add to the similarity score the times appeared multiplied by the number itself.
 	for _, num := range left_list {
 		if times_appeared, ok := apperances[num]; ok {
-			similarity_score += uint64(times_appeared) * uint64(num)
+			similarity_score += int64(times_appeared) * num
 		}
 	}
 
