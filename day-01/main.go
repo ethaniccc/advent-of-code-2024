@@ -53,7 +53,7 @@ func calculate_distance() int64 {
 
 func calculate_similarity() int64 {
 	var (
-		apperances       = make(map[int64]uint16)
+		apperances       = make(map[int64]int64)
 		similarity_score int64
 	)
 
@@ -72,7 +72,7 @@ func calculate_similarity() int64 {
 	// right list, and add to the similarity score the times appeared multiplied by the number itself.
 	for _, num := range left_list {
 		if times_appeared, ok := apperances[num]; ok {
-			similarity_score += int64(times_appeared) * num
+			similarity_score += times_appeared * num
 		}
 	}
 
