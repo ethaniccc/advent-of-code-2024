@@ -8,16 +8,28 @@ import (
 )
 
 var (
-	mul_pattern = regexp.MustCompile(`(?:mul)\([0-9]{1,3}\,[0-9]{1,3}\)`)
-	// TODO: complete this because regex will be the end of me...
-	mul_with_switch_pattern = regexp.MustCompile(`(?:mul)\([0-9]{1,3}\,[0-9]{1,3}\)`)
-	num_pattern             = regexp.MustCompile(`([0-9]{1,3})`)
-	total                   int64
-	switched_total          int64
+	mul_pattern        = regexp.MustCompile(`(?:mul)\([0-9]{1,3}\,[0-9]{1,3}\)`)
+	mul_switch_pattern = regexp.MustCompile(`(?:mul)\([0-9]{1,3}\,[0-9]{1,3}\)|do\(\)|don\'t\(\)`)
+	num_pattern        = regexp.MustCompile(`([0-9]{1,3})`)
+	total              int64
+	switched_total     int64
 )
 
 func find_and_run_instructions(pattern *regexp.Regexp, data []byte, total *int64) {
+	switched := true
 	for _, instruction := range pattern.FindAll(data, 42069) {
+		if string(instruction) == `do()` {
+			switched = true
+			continue
+		} else if string(instruction) == `don't()` {
+			switched = false
+			continue
+		}
+
+		if !switched {
+			continue
+		}
+
 		var (
 			n1, n2 int64
 			err    error
@@ -30,6 +42,7 @@ func find_and_run_instructions(pattern *regexp.Regexp, data []byte, total *int64
 			panic(err)
 		}
 
+		fmt.Printf("%d * %d = %d\n", n1, n2, n1*n2)
 		*total += n1 * n2
 	}
 }
@@ -40,10 +53,8 @@ func main() {
 		panic(err)
 	}
 
-	sample := "xmul(2,4)&mul[3,7]!^don't()_mul(5,5)+mul(32,64](mul(11,8)undo()?mul(8,5))"
-	fmt.Println(mul_with_switch_pattern.FindAllString(sample, 4))
-
 	find_and_run_instructions(mul_pattern, dat, &total)
-	find_and_run_instructions(mul_with_switch_pattern, dat, &switched_total)
-	fmt.Println(total, switched_total, switched_total < total)
+	find_and_run_instructions(mul_switch_pattern, dat, &switched_total)
+
+	fmt.Println(total, switched_total)
 }
