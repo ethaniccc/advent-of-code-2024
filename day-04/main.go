@@ -20,19 +20,29 @@ const (
 )
 
 var (
-	wordSearch     = make(map[Vec2]byte)
-	foundPositions = make(map[Vec2]struct{})
-	searchResults  = make(map[SearchResult]struct{})
-	endBoundry     = Vec2{0, 1}
+	wordSearch    = make(map[Vec2]byte)
+	searchResults = make(map[SearchResult]struct{})
+	endBoundry    = Vec2{lineLength}
 
-	forwardSequence = []byte("XMAS")
-	reverseSequence = []byte("SAMX")
-	wordLength      = 4
-	lineLength      = 140
-	actualResults   int
+	lineLength = 140
 )
 
 type Direction byte
+
+func (d Direction) Diagonal() bool {
+	return d >= DirectionDownRight && d < directionCount
+}
+
+func (d Direction) Perpendicular() Direction {
+	switch d {
+	case DirectionDownRight, DirectionUpRight:
+		return DirectionDownLeft
+	case DirectionDownLeft, DirectionUpLeft:
+		return DirectionDownRight
+	default:
+		panic("no: don't use. get lost")
+	}
+}
 
 func (d Direction) Modifier() Vec2 {
 	switch d {
@@ -89,10 +99,18 @@ func (v Vec2) WithinBoundary() bool {
 	return inBoundsX && inBoundsY
 }
 
+func (v Vec2) Add(v2 Vec2) Vec2 {
+	return Vec2{v[0] + v2[0], v[1] + v2[1]}
+}
+
+func (v Vec2) Sub(v2 Vec2) Vec2 {
+	return Vec2{v[0] - v2[0], v[1] - v2[1]}
+}
+
 type SearchResult struct {
-	Position  Vec2
+	Origin    Vec2
 	Direction Direction
-	Reversed  bool
+	XMAS      bool
 }
 
 func parseInput() {
@@ -109,81 +127,89 @@ func parseInput() {
 		}
 		yAxis++
 	}
-
-	endBoundry[0] = lineLength
 	endBoundry[1] = yAxis - 1
 }
 
-func trySearchingDirection(start Vec2, d Direction) {
-	// First get the sequence of the letters in the direction.
-	sequence := make([]byte, wordLength)
-	results := make([]SearchResult, wordLength)
+func searchXMAS(start Vec2, d Direction) bool {
+	fSeq := []byte("XMAS")
+	rSeq := []byte("SAMX")
+
+	if sChar, ok := wordSearch[start]; !ok || (sChar != fSeq[0] && sChar != fSeq[1]) {
+		return false
+	}
+
+	sequence := make([]byte, 4)
 	currentPos := start
-	modifier := d.Modifier()
-	for i := 0; i < wordLength; i++ {
-		if !currentPos.WithinBoundary() {
-			// Do not attempt this direction if it eventually goes out of bounds of the word search.
-			return
+	for i := 0; i < 4; i++ {
+		char, ok := wordSearch[currentPos]
+		if !ok {
+			return false
 		}
 
-		sequence[i] = wordSearch[currentPos]
-		results[i] = SearchResult{Position: currentPos, Direction: d}
-		foundPositions[currentPos] = struct{}{}
-
-		currentPos[0] += modifier[0]
-		currentPos[1] += modifier[1]
+		sequence[i] = char
+		currentPos = currentPos.Add(d.Modifier())
 	}
 
-	// Now, check if we already have this search result found from another search.
-	if _, ok := searchResults[results[0]]; ok {
-		return
+	if sequenceMatches(sequence, fSeq, rSeq) {
+		searchResults[SearchResult{
+			Origin:    start,
+			Direction: d,
+			XMAS:      true,
+		}] = struct{}{}
+		return true
+	}
+	return false
+}
+
+func searchXShapedMAS(start Vec2) bool {
+	fSeq := []byte("MAS")
+	rSeq := []byte("SAM")
+
+	startChar, ok := wordSearch[start]
+	if !ok || startChar != fSeq[1] {
+		return false
 	}
 
-	var reversed, found bool
-	if slices.Equal(reverseSequence, sequence) {
-		reversed = true
-		found = true
-	} else if slices.Equal(forwardSequence, sequence) {
-		found = true
+	s1, s2 := []byte{
+		wordSearch[start.Add(Vec2{-1, 1})],
+		wordSearch[start],
+		wordSearch[start.Add(Vec2{1, -1})],
+	}, []byte{
+		wordSearch[start.Add(Vec2{-1, -1})],
+		wordSearch[start],
+		wordSearch[start.Add(Vec2{1, 1})],
 	}
 
-	if !found {
-		return
+	if sequenceMatches(s1, fSeq, rSeq) && sequenceMatches(s2, fSeq, rSeq) {
+		searchResults[SearchResult{Origin: start}] = struct{}{}
+		return true
 	}
+	return false
+}
 
-	// We also have to make sure none in the opposite direction exist.
-	if _, ok := searchResults[SearchResult{Position: start, Direction: d.Opposite(), Reversed: !reversed}]; !ok {
-		for _, result := range results {
-			result.Reversed = reversed
-			searchResults[result] = struct{}{}
-		}
-		actualResults++
-		fmt.Printf("%s FOUND at (%v, direction=%d)\n", string(sequence), start, d)
-	}
+func sequenceMatches(s, fSeq, rSeq []byte) bool {
+	return slices.Equal(s, fSeq) || slices.Equal(s, rSeq)
 }
 
 func main() {
 	parseInput()
+
+	var xmasScore, masXScore int
 	for xAxis := 1; xAxis <= endBoundry[0]; xAxis++ {
 		for yAxis := 1; yAxis <= endBoundry[1]; yAxis++ {
 			searchPosition := Vec2{xAxis, yAxis}
 			for currentDirection := DirectionDown; currentDirection < directionCount; currentDirection++ {
-				trySearchingDirection(searchPosition, currentDirection)
+				if searchXMAS(searchPosition, currentDirection) {
+					xmasScore++
+				}
+			}
+
+			if searchXShapedMAS(searchPosition) {
+				masXScore++
 			}
 		}
 	}
 
-	remainingPositions := len(wordSearch)
-	for pos := range wordSearch {
-		if _, ok := foundPositions[pos]; !ok {
-			fmt.Println(pos, "not searched")
-		} else {
-			remainingPositions--
-		}
-	}
-
-	if remainingPositions > 0 {
-		panic(fmt.Errorf("%d positions remain unsearched", remainingPositions))
-	}
-	fmt.Println("found:", actualResults)
+	fmt.Println("found XMAS:", xmasScore)
+	fmt.Println("found X-shaped MAS:", masXScore)
 }
