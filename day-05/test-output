@@ -1,0 +1,9 @@
+6 orders
+old: [75 97 47 61 53]
+new: [97 75 47 61 53]
+old: [61 13 29]
+new: [61 29 13]
+old: [97 13 75 29 47]
+new: [97 75 47 29 13]
+valid order sum: 143
+invalid order sum: 266
