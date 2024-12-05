@@ -3,7 +3,6 @@ package main
 import (
 	"fmt"
 	"os"
-	"regexp"
 	"slices"
 	"strings"
 )
@@ -26,8 +25,6 @@ var (
 	searchResults  = make(map[SearchResult]struct{})
 	endBoundry     = Vec2{0, 1}
 
-	forwardPattern  = regexp.MustCompile(`^X+MAS$`)
-	reversePattern  = regexp.MustCompile(`^S+AMX$`)
 	forwardSequence = []byte("XMAS")
 	reverseSequence = []byte("SAMX")
 	wordLength      = 4
@@ -95,6 +92,7 @@ func (v Vec2) WithinBoundary() bool {
 type SearchResult struct {
 	Position  Vec2
 	Direction Direction
+	Reversed  bool
 }
 
 func parseInput() {
@@ -130,6 +128,7 @@ func trySearchingDirection(start Vec2, d Direction) {
 
 		sequence[i] = wordSearch[currentPos]
 		results[i] = SearchResult{Position: currentPos, Direction: d}
+		foundPositions[currentPos] = struct{}{}
 
 		currentPos[0] += modifier[0]
 		currentPos[1] += modifier[1]
@@ -139,36 +138,28 @@ func trySearchingDirection(start Vec2, d Direction) {
 	if _, ok := searchResults[results[0]]; ok {
 		return
 	}
-	// We also have to make sure none in the opposite direction exist.
-	if _, ok := searchResults[SearchResult{Position: start, Direction: d.Opposite()}]; ok {
+
+	var reversed, found bool
+	if slices.Equal(reverseSequence, sequence) {
+		reversed = true
+		found = true
+	} else if slices.Equal(forwardSequence, sequence) {
+		found = true
+	}
+
+	if !found {
 		return
 	}
 
-	// Finally, we check if the result is valid, and if so, add it to the found cache
-	if slices.Equal(reverseSequence, sequence) || slices.Equal(forwardSequence, sequence) {
+	// We also have to make sure none in the opposite direction exist.
+	if _, ok := searchResults[SearchResult{Position: start, Direction: d.Opposite(), Reversed: !reversed}]; !ok {
 		for _, result := range results {
+			result.Reversed = reversed
 			searchResults[result] = struct{}{}
-			foundPositions[result.Position] = struct{}{}
 		}
 		actualResults++
 		fmt.Printf("%s FOUND at (%v, direction=%d)\n", string(sequence), start, d)
-	} else {
-		// Check for "overlap" by getting next letter and seeing if any one could be removed to get "XMAS"
-		currentPos[0] += modifier[0]
-		currentPos[1] += modifier[1]
-		sequence = append(sequence, wordSearch[currentPos])
-		results = append(results, SearchResult{Position: currentPos, Direction: d})
-
-		if forwardPattern.Match(sequence) || reversePattern.Match(sequence) {
-			for _, result := range results {
-				searchResults[result] = struct{}{}
-				foundPositions[result.Position] = struct{}{}
-			}
-			actualResults++
-			fmt.Printf("%s weird overlap FOUND at (%v, direction=%d)\n", string(sequence), start, d)
-		}
 	}
-
 }
 
 func main() {
@@ -182,18 +173,17 @@ func main() {
 		}
 	}
 
-	/* for yAxis := 1; yAxis <= endBoundry[1]; yAxis++ {
-		dat := ""
-		for xAxis := 1; xAxis <= endBoundry[0]; xAxis++ {
-			pos := Vec2{xAxis, yAxis}
-			if _, ok := foundPositions[pos]; ok {
-				dat += "*"
-			} else {
-				dat += string(wordSearch[pos])
-			}
+	remainingPositions := len(wordSearch)
+	for pos := range wordSearch {
+		if _, ok := foundPositions[pos]; !ok {
+			fmt.Println(pos, "not searched")
+		} else {
+			remainingPositions--
 		}
-		fmt.Println(dat)
-	} */
+	}
 
+	if remainingPositions > 0 {
+		panic(fmt.Errorf("%d positions remain unsearched", remainingPositions))
+	}
 	fmt.Println("found:", actualResults)
 }
