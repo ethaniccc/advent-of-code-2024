@@ -51,44 +51,10 @@ func (d Direction) Modifier() Vec2 {
 	}
 }
 
-func (d Direction) Opposite() Direction {
-	switch d {
-	case DirectionDown:
-		return DirectionUp
-	case DirectionUp:
-		return DirectionDown
-	case DirectionLeft:
-		return DirectionRight
-	case DirectionRight:
-		return DirectionLeft
-	case DirectionDownRight:
-		return DirectionUpLeft
-	case DirectionDownLeft:
-		return DirectionUpRight
-	case DirectionUpRight:
-		return DirectionDownLeft
-	case DirectionUpLeft:
-		return DirectionDownRight
-	default:
-		panic("idk wt(heck) is the opposite of you???")
-	}
-}
-
 type Vec2 [2]int
-
-func (v Vec2) WithinBoundary() bool {
-	inBoundsX := v[0] >= 1 && v[0] <= endBoundry[0]
-	inBoundsY := v[1] >= 1 && v[1] <= endBoundry[1]
-
-	return inBoundsX && inBoundsY
-}
 
 func (v Vec2) Add(v2 Vec2) Vec2 {
 	return Vec2{v[0] + v2[0], v[1] + v2[1]}
-}
-
-func (v Vec2) Sub(v2 Vec2) Vec2 {
-	return Vec2{v[0] - v2[0], v[1] - v2[1]}
 }
 
 func parseInput() {
