@@ -20,29 +20,13 @@ const (
 )
 
 var (
-	wordSearch    = make(map[Vec2]byte)
-	searchResults = make(map[SearchResult]struct{})
-	endBoundry    = Vec2{lineLength}
+	wordSearch = make(map[Vec2]byte)
+	endBoundry = Vec2{lineLength}
 
 	lineLength = 140
 )
 
 type Direction byte
-
-func (d Direction) Diagonal() bool {
-	return d >= DirectionDownRight && d < directionCount
-}
-
-func (d Direction) Perpendicular() Direction {
-	switch d {
-	case DirectionDownRight, DirectionUpRight:
-		return DirectionDownLeft
-	case DirectionDownLeft, DirectionUpLeft:
-		return DirectionDownRight
-	default:
-		panic("no: don't use. get lost")
-	}
-}
 
 func (d Direction) Modifier() Vec2 {
 	switch d {
@@ -107,12 +91,6 @@ func (v Vec2) Sub(v2 Vec2) Vec2 {
 	return Vec2{v[0] - v2[0], v[1] - v2[1]}
 }
 
-type SearchResult struct {
-	Origin    Vec2
-	Direction Direction
-	XMAS      bool
-}
-
 func parseInput() {
 	wordSearch = make(map[Vec2]byte)
 	dat, err := os.ReadFile("input")
@@ -151,11 +129,6 @@ func searchXMAS(start Vec2, d Direction) bool {
 	}
 
 	if sequenceMatches(sequence, fSeq, rSeq) {
-		searchResults[SearchResult{
-			Origin:    start,
-			Direction: d,
-			XMAS:      true,
-		}] = struct{}{}
 		return true
 	}
 	return false
@@ -181,7 +154,6 @@ func searchXShapedMAS(start Vec2) bool {
 	}
 
 	if sequenceMatches(s1, fSeq, rSeq) && sequenceMatches(s2, fSeq, rSeq) {
-		searchResults[SearchResult{Origin: start}] = struct{}{}
 		return true
 	}
 	return false
