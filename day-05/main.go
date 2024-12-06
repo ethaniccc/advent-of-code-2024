@@ -25,9 +25,13 @@ func (r Ruleset) Validate(order []int64) (int, bool) {
 		} else if page == r.Before {
 			beforeIndex = index
 		}
+
+		if beforeIndex != -1 && afterIndex != -1 {
+			break
+		}
 	}
 
-	return beforeIndex, beforeIndex == -1 || afterIndex == -1 || (beforeIndex < afterIndex)
+	return beforeIndex, (beforeIndex == -1 && afterIndex == -1) || (beforeIndex < afterIndex)
 }
 
 func parseInput() {
