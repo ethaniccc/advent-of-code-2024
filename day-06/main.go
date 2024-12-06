@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"maps"
 	"os"
+	"runtime"
+	"runtime/debug"
 	"strings"
 	"sync"
 )
@@ -38,6 +40,10 @@ func (v Vec2) Add(v2 Vec2) Vec2 {
 	return Vec2{v[0] + v2[0], v[1] + v2[1]}
 }
 
+type TestLoopJob struct {
+	Obstacle Vec2
+}
+
 const (
 	DirectionUp Direction = iota
 	DirectionRight
@@ -54,9 +60,28 @@ var (
 	loopObstacles   = make(map[Vec2]struct{})
 	visited         = make(map[Vec2]struct{})
 
-	wg   sync.WaitGroup
-	loMu sync.RWMutex
+	testGuardLoopJobs = make(chan TestLoopJob, runtime.NumCPU())
+	wg                sync.WaitGroup
+	loMu              sync.RWMutex
 )
+
+func initWorkers() {
+	for i := 0; i < runtime.NumCPU(); i++ {
+		wg.Add(1)
+		go func() {
+			obstacles := maps.Clone(initalObstacles)
+			for {
+				job, ok := <-testGuardLoopJobs
+				if !ok {
+					wg.Done()
+					return
+				}
+
+				tryToLoopTrapGuard(job.Obstacle, obstacles)
+			}
+		}()
+	}
+}
 
 func parseInput() {
 	dat, err := os.ReadFile("input")
@@ -99,6 +124,7 @@ func traverseUntilLoopOrEnd(tempObstacle *Vec2, obstacles map[Vec2]struct{}) (lo
 		loMu.RLock()
 		_, tempObFound := loopObstacles[*tempObstacle]
 		loMu.RUnlock()
+
 		if tempObFound {
 			return false
 		}
@@ -116,7 +142,6 @@ func traverseUntilLoopOrEnd(tempObstacle *Vec2, obstacles map[Vec2]struct{}) (lo
 
 	collisions := make(map[Direction]map[Vec2]struct{})
 	dueToTempObstacle := false
-
 	for d := DirectionUp; d < directionCount; d++ {
 		collisions[d] = make(map[Vec2]struct{})
 	}
@@ -135,6 +160,9 @@ func traverseUntilLoopOrEnd(tempObstacle *Vec2, obstacles map[Vec2]struct{}) (lo
 		for {
 			if outOfBounds(nextPos) {
 				// If the position is no longer in bounds, we can stop searching for possible positions.
+				if tempObstacle == nil {
+					close(testGuardLoopJobs)
+				}
 				return false
 			} else if _, ok := obstacles[nextPos]; ok {
 				// If this is to test to see if an obstacle can cause the guard to loop, check if
@@ -155,8 +183,7 @@ func traverseUntilLoopOrEnd(tempObstacle *Vec2, obstacles map[Vec2]struct{}) (lo
 			}
 
 			if tempObstacle == nil {
-				wg.Add(1)
-				go tryPossibleLoop(nextPos)
+				testGuardLoopJobs <- TestLoopJob{Obstacle: nextPos}
 				visited[nextPos] = struct{}{}
 			}
 			guardPos = nextPos
@@ -165,13 +192,12 @@ func traverseUntilLoopOrEnd(tempObstacle *Vec2, obstacles map[Vec2]struct{}) (lo
 	}
 }
 
-func tryPossibleLoop(pos Vec2) {
-	if looped := traverseUntilLoopOrEnd(&pos, maps.Clone(initalObstacles)); looped {
+func tryToLoopTrapGuard(pos Vec2, obstacles map[Vec2]struct{}) {
+	if looped := traverseUntilLoopOrEnd(&pos, obstacles); looped {
 		loMu.Lock()
 		loopObstacles[pos] = struct{}{}
 		loMu.Unlock()
 	}
-	wg.Done()
 }
 
 func outOfBounds(pos Vec2) bool {
@@ -180,6 +206,9 @@ func outOfBounds(pos Vec2) bool {
 
 func main() {
 	parseInput()
+	initWorkers()
+
+	debug.SetGCPercent(-1)
 	traverseUntilLoopOrEnd(nil, initalObstacles)
 	wg.Wait()
 
