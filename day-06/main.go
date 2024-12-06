@@ -2,8 +2,10 @@ package main
 
 import (
 	"fmt"
+	"maps"
 	"os"
 	"strings"
+	"sync"
 )
 
 type Direction byte
@@ -48,9 +50,11 @@ var (
 	maxBoundry Vec2
 	guardStart Vec2
 
-	obstacles     = make(map[Vec2]struct{})
-	loopObstacles = make(map[Vec2]struct{})
-	visited       = make(map[Vec2]struct{})
+	initalObstacles = make(map[Vec2]struct{})
+	loopObstacles   = make(map[Vec2]struct{})
+	visited         = make(map[Vec2]struct{})
+
+	loMu, vMu sync.RWMutex
 )
 
 func parseInput() {
@@ -73,7 +77,7 @@ func parseInput() {
 
 		for xAxis := 0; xAxis < lineLength; xAxis++ {
 			if char := line[xAxis]; char == obstacle {
-				obstacles[Vec2{xAxis, yAxis}] = struct{}{}
+				initalObstacles[Vec2{xAxis, yAxis}] = struct{}{}
 			} else if char == guard {
 				guardStart = Vec2{xAxis, yAxis}
 				fmt.Println("found guard at", guardStart)
@@ -88,20 +92,13 @@ func parseInput() {
 	maxBoundry = Vec2{expectedLineLength, yAxis - 1}
 }
 
-func traverseUntilLoopOrEnd(tempObstacle *Vec2) (looped bool) {
-	collisions := make(map[Direction]map[Vec2]struct{})
-	dueToTempObstacle := false
-
-	for d := DirectionUp; d < directionCount; d++ {
-		collisions[d] = make(map[Vec2]struct{})
-	}
-
-	guardDirection := DirectionUp
-	guardPos := guardStart
-
+func traverseUntilLoopOrEnd(tempObstacle *Vec2, obstacles map[Vec2]struct{}) (looped bool) {
 	if tempObstacle != nil {
 		// Check to see if we've already determined the temporary obstacle to be a cause for the guard to loop.
-		if _, ok := loopObstacles[*tempObstacle]; ok {
+		loMu.RLock()
+		_, tempObFound := loopObstacles[*tempObstacle]
+		loMu.RUnlock()
+		if tempObFound {
 			return false
 		}
 
@@ -116,11 +113,23 @@ func traverseUntilLoopOrEnd(tempObstacle *Vec2) (looped bool) {
 		}
 	}
 
+	collisions := make(map[Direction]map[Vec2]struct{})
+	dueToTempObstacle := false
+
+	for d := DirectionUp; d < directionCount; d++ {
+		collisions[d] = make(map[Vec2]struct{})
+	}
+
+	guardDirection := DirectionUp
+	guardPos := guardStart
+
 	// Keep taking another step as long as there is no obstacle in the way.
 	for {
 		step := guardDirection.Step()
 		nextPos := guardPos.Add(step)
-		visited[guardPos] = struct{}{}
+		if tempObstacle == nil {
+			visited[guardPos] = struct{}{}
+		}
 
 		for {
 			if outOfBounds(nextPos) {
@@ -145,13 +154,16 @@ func traverseUntilLoopOrEnd(tempObstacle *Vec2) (looped bool) {
 			}
 
 			guardPos = nextPos
-			visited[guardPos] = struct{}{}
 			nextPos = nextPos.Add(step)
+			if tempObstacle == nil {
+				visited[guardPos] = struct{}{}
+			}
 		}
 	}
 }
 
 func tryPossibleLoops(pos Vec2) {
+	obstacles := maps.Clone(initalObstacles)
 	for _, obPos := range []Vec2{
 		pos.Add(DirectionUp.Step()),
 		pos.Add(DirectionDown.Step()),
@@ -159,8 +171,10 @@ func tryPossibleLoops(pos Vec2) {
 		pos.Add(DirectionRight.Step()),
 	} {
 		// Only add the position to the temp obstacles map if there isn't already an existing obstacle.
-		if looped := traverseUntilLoopOrEnd(&obPos); looped {
+		if looped := traverseUntilLoopOrEnd(&obPos, obstacles); looped {
+			loMu.Lock()
 			loopObstacles[obPos] = struct{}{}
+			loMu.Unlock()
 		}
 	}
 }
@@ -171,13 +185,20 @@ func outOfBounds(pos Vec2) bool {
 
 func main() {
 	parseInput()
-	traverseUntilLoopOrEnd(nil)
+	traverseUntilLoopOrEnd(nil, initalObstacles)
 	fmt.Println("guard traveled to", len(visited), "unique positions")
 
+	var wg sync.WaitGroup
 	for previousGuardPos := range visited {
 		if previousGuardPos != guardStart {
-			tryPossibleLoops(previousGuardPos)
+			wg.Add(1)
+			go func() {
+				tryPossibleLoops(previousGuardPos)
+				wg.Done()
+			}()
 		}
 	}
+
+	wg.Wait()
 	fmt.Println("found", len(loopObstacles), "obstacles that cause loops")
 }
