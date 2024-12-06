@@ -54,7 +54,8 @@ var (
 	loopObstacles   = make(map[Vec2]struct{})
 	visited         = make(map[Vec2]struct{})
 
-	loMu, vMu sync.RWMutex
+	wg   sync.WaitGroup
+	loMu sync.RWMutex
 )
 
 func parseInput() {
@@ -153,30 +154,24 @@ func traverseUntilLoopOrEnd(tempObstacle *Vec2, obstacles map[Vec2]struct{}) (lo
 				break
 			}
 
+			if tempObstacle == nil {
+				wg.Add(1)
+				go tryPossibleLoop(nextPos)
+				visited[nextPos] = struct{}{}
+			}
 			guardPos = nextPos
 			nextPos = nextPos.Add(step)
-			if tempObstacle == nil {
-				visited[guardPos] = struct{}{}
-			}
 		}
 	}
 }
 
-func tryPossibleLoops(pos Vec2) {
-	obstacles := maps.Clone(initalObstacles)
-	for _, obPos := range []Vec2{
-		pos.Add(DirectionUp.Step()),
-		pos.Add(DirectionDown.Step()),
-		pos.Add(DirectionLeft.Step()),
-		pos.Add(DirectionRight.Step()),
-	} {
-		// Only add the position to the temp obstacles map if there isn't already an existing obstacle.
-		if looped := traverseUntilLoopOrEnd(&obPos, obstacles); looped {
-			loMu.Lock()
-			loopObstacles[obPos] = struct{}{}
-			loMu.Unlock()
-		}
+func tryPossibleLoop(pos Vec2) {
+	if looped := traverseUntilLoopOrEnd(&pos, maps.Clone(initalObstacles)); looped {
+		loMu.Lock()
+		loopObstacles[pos] = struct{}{}
+		loMu.Unlock()
 	}
+	wg.Done()
 }
 
 func outOfBounds(pos Vec2) bool {
@@ -186,19 +181,8 @@ func outOfBounds(pos Vec2) bool {
 func main() {
 	parseInput()
 	traverseUntilLoopOrEnd(nil, initalObstacles)
-	fmt.Println("guard traveled to", len(visited), "unique positions")
-
-	var wg sync.WaitGroup
-	for previousGuardPos := range visited {
-		if previousGuardPos != guardStart {
-			wg.Add(1)
-			go func() {
-				tryPossibleLoops(previousGuardPos)
-				wg.Done()
-			}()
-		}
-	}
-
 	wg.Wait()
+
+	fmt.Println("guard traveled to", len(visited), "unique positions")
 	fmt.Println("found", len(loopObstacles), "obstacles that cause loops")
 }
