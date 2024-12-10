@@ -66,32 +66,55 @@ func findNumFromEnd(block []int64) int {
 	panic("no number found from end")
 }
 
-func findBlockOfID(block []int64, id int64) (int, int) {
+func findBlockOfID(block []int64, id int64) (int, int, bool) {
 	endIndex := -1
 	for index := len(block) - 1; index >= 0; index-- {
 		if block[index] == id && endIndex == -1 {
 			endIndex = index
 		} else if block[index] != id && endIndex != -1 {
-			return index, endIndex
+			return index + 1, endIndex, true
 		}
 	}
-	panic("block not found - this should never happen")
+
+	if endIndex != -1 {
+		return 0, endIndex, true
+	}
+	return -1, -1, false
 }
 
 func findFreeBlockOfSize(block []int64, size int) (int, int, bool) {
 	startIndex := -1
 	for index, num := range block {
 		if num == -1 && startIndex == -1 {
+			if size == 0 {
+				return index, index, true
+			}
 			startIndex = index
 		} else if num != -1 && startIndex != -1 {
-			if index-startIndex < size {
+			if (index-1)-startIndex < size {
 				startIndex = -1
 			} else {
-				return startIndex, index, true
+				return startIndex, index - 1, true
 			}
 		}
 	}
+
+	if startIndex != -1 {
+		return startIndex, len(block) - 1, true
+	}
 	return -1, -1, false
+}
+
+func blockChecksum(block []int64) int64 {
+	var sum int64
+	for index, num := range block {
+		if num == -1 {
+			continue
+		}
+		sum += int64(index) * num
+	}
+
+	return sum
 }
 
 func part1() {
@@ -109,38 +132,33 @@ func part1() {
 		p1block[nextNumIndex] = -1
 	}
 
-	var sum int64
-	for index, num := range p1block {
-		if num == -1 {
-			break
-		}
-		sum += int64(index) * num
-	}
-	fmt.Println("part1 checksum:", sum)
+	fmt.Println("part1 checksum:", blockChecksum(p1block))
 }
 
 func part2() {
 	p2block := make([]int64, len(block))
 	copy(p2block, block)
-	fmt.Println(p2block)
 
-	for id := int64(9); id >= 0; id-- {
-		startOfBlock, endOfBlock := findBlockOfID(p2block, id)
-		startOfMove, endOfMove, foundMove := findFreeBlockOfSize(p2block, (endOfBlock-startOfBlock)+1)
+	for id := int64(10000); id >= 0; id-- {
+		startOfBlock, endOfBlock, blockFound := findBlockOfID(p2block, id)
+		if !blockFound {
+			fmt.Println("block", id, "not found")
+			continue
+		}
+
+		startOfMove, _, foundMove := findFreeBlockOfSize(p2block, endOfBlock-startOfBlock)
 		if !foundMove || startOfMove > startOfBlock {
 			continue
 		}
 
-		fmt.Println(startOfMove, endOfMove, startOfBlock, endOfBlock)
-		oldIndex := startOfBlock
-		for i := startOfMove; i <= endOfMove; i++ {
-			p2block[i] = p2block[oldIndex]
-			p2block[oldIndex] = -1
-			oldIndex++
-			fmt.Println(oldIndex, i)
+		moveIndex := startOfMove
+		for i := startOfBlock; i <= endOfBlock; i++ {
+			p2block[moveIndex] = p2block[i]
+			p2block[i] = -1
+			moveIndex++
 		}
 	}
-	fmt.Println(p2block)
+	fmt.Println("part 2 checksum:", blockChecksum(p2block))
 }
 
 func main() {
